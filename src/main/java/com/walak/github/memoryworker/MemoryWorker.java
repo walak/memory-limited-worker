@@ -2,6 +2,7 @@ package com.walak.github.memoryworker;
 
 import com.walak.github.memoryworker.task.MemoryWorkerTask;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -13,17 +14,20 @@ import java.util.logging.Logger;
 
 public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable {
     private static final Logger LOG = Logger.getLogger(MemoryWorker.class.getSimpleName());
+    private static final double ALLOWED_MEMORY_FILL_RATIO = 0.8;
 
     private BlockingQueue<T> tasks;
     private List<O> results;
     private AtomicBoolean isRunning;
     private AtomicInteger taskCounter;
+    private List<MemoryFullHandler<O>> memoryFullHandlers;
 
     public MemoryWorker(int jobQueueCapacity) {
         this.tasks = new LinkedBlockingQueue<T>(jobQueueCapacity);
         this.taskCounter = new AtomicInteger(0);
         this.isRunning = new AtomicBoolean(true);
         this.results = new LinkedList<O>();
+        this.memoryFullHandlers = Collections.synchronizedList(new LinkedList<>());
     }
 
     public boolean tryAddTask(T task) {
@@ -50,9 +54,14 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
     public void run() {
         LOG.info("MemoryWorker started!");
         while (isRunning.get()) {
+            checkMemory();
             T task = tasks.poll();
             Optional<O> result = executeTaskCatchingAnyErrors(task);
-            result.ifPresent(results::add);
+            result.ifPresent(r -> {
+                taskCounter.incrementAndGet();
+                results.add(r);
+            });
+            checkMemory();
         }
     }
 
@@ -65,5 +74,37 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
             LOG.warning("Task execution finished with error: " + e.getMessage());
             return Optional.empty();
         }
+    }
+
+    public List<O> pullResults() {
+        List<O> resultsToReturn = this.results;
+        this.results = new LinkedList<O>();
+        return resultsToReturn;
+    }
+
+    private void checkMemory() {
+        if (getMemoryFillRatio() >= ALLOWED_MEMORY_FILL_RATIO) {
+            LOG.info(String.format("Memory filled too much to process (%.2f%%, allowed %.2f%%",
+                    getMemoryFillRatio() * 100,
+                    ALLOWED_MEMORY_FILL_RATIO * 100));
+
+            List<O> results = Collections.unmodifiableList(pullResults());
+
+            for (MemoryFullHandler<O> handler : memoryFullHandlers) {
+                handler.onMemoryFull(results);
+            }
+        }
+    }
+
+    private double getFreeMemory() {
+        return Runtime.getRuntime().freeMemory();
+    }
+
+    private double getMaxMemory() {
+        return Runtime.getRuntime().maxMemory();
+    }
+
+    private double getMemoryFillRatio() {
+        return 1.0 - (getFreeMemory() / getMaxMemory());
     }
 }
