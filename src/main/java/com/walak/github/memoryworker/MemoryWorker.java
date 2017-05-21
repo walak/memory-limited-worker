@@ -14,7 +14,7 @@ import java.util.logging.Logger;
 
 public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable {
     private static final Logger LOG = Logger.getLogger(MemoryWorker.class.getSimpleName());
-    private static final double ALLOWED_MEMORY_FILL_RATIO = 0.90;
+    private static final double ALLOWED_MEMORY_FILL_RATIO = 0.9;
 
     private BlockingQueue<T> tasks;
     private List<O> results;
@@ -89,6 +89,17 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         }
     }
 
+    private void executeHandleCatchingAnyError(MemoryFullHandler<O> handler, List<O> results) {
+        try {
+            handler.onMemoryFull(results);
+        } catch (Throwable e) {
+            String message = String.format("Error executing handler %s: %s",
+                    handler.getClass().getName(),
+                    e.getMessage());
+            LOG.warning(message);
+        }
+    }
+
     public List<O> pullResults() {
         List<O> resultsToReturn = this.results;
         this.results = new LinkedList<O>();
@@ -104,7 +115,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
             List<O> results = Collections.unmodifiableList(pullResults());
 
             for (MemoryFullHandler<O> handler : getHandlersToRun()) {
-                handler.onMemoryFull(results);
+                executeHandleCatchingAnyError(handler, results);
             }
         }
     }
@@ -130,6 +141,10 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
     public MemoryWorker<O, T> addMemoryFullHandler(MemoryFullHandler<O> memoryFullHandler) {
         this.memoryFullHandlers.add(memoryFullHandler);
         return this;
+    }
+
+    public void stopExecution() {
+        this.isRunning.set(false);
     }
 
     private class GCRunHandler implements MemoryFullHandler<O> {
