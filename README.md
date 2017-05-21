@@ -3,7 +3,7 @@ A simple framework to run series of tasks until JVM memory is full.
 
 ## Abstract
 This simple project will be a part of [new Java implementation](https://github.com/walak/knight-java)
-of [knight game](https://github.com/walak/knight). To gain better performance is distributed environment,
+of [knight game](https://github.com/walak/knight). To gain better performance in distributed environment,
 Java implementation will behave a bit different comparing to Python's solution - it produces new results until
 JVM memory is almost full. To control the process automatically I prepared this simple framework which is able
 to spot that memory is almost full, then handle all produced results and continue right after GC is finished.
@@ -67,9 +67,19 @@ execution is stopped and all handlers are called so that handlers can consume
 results.
 Important notes:
 * **All handlers receive the same instance of immutable list**
-* **Handlers are called in Worker's thread so execution is stopped**
+* **Handlers are called in `MemoryWorker`'s thread so execution is stopped**
 * **Tasks can be added during the phase unless job queue is full**
 
 Besides user's handlers there are a few mandatory handlers to assure GC run, etc.
 
+### Tips
 
+* for optimal performance it should rather run small tasks that produce large output
+* current design works fine with small JVM memory settings, e. g. `-Xmx256m`, running it
+with big heap space and small results may cause significant pauses due to excessive GC.
+* setting both `-Xms` and `-Xmx` may improve performance a bit
+
+## Further development
+
+For now it is bare (but good enough) minimum I needed. As a next step I want to add such features:
+* add more smart capacity checking, for now it may cause OOME during task execution
