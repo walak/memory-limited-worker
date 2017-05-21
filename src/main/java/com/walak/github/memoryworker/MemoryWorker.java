@@ -84,7 +84,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
 
     private void checkMemory() {
         if (getMemoryFillRatio() >= ALLOWED_MEMORY_FILL_RATIO) {
-            LOG.info(String.format("Memory filled too much to process (%.2f%%, allowed %.2f%%",
+            LOG.info(String.format("Memory filled too much to process (%.2f%%, allowed %.2f%%)",
                     getMemoryFillRatio() * 100,
                     ALLOWED_MEMORY_FILL_RATIO * 100));
 
@@ -106,5 +106,10 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
 
     private double getMemoryFillRatio() {
         return 1.0 - (getFreeMemory() / getMaxMemory());
+    }
+
+    public MemoryWorker<O, T> addMemoryFullHandler(MemoryFullHandler<O> memoryFullHandler) {
+        this.memoryFullHandlers.add(memoryFullHandler);
+        return this;
     }
 }
