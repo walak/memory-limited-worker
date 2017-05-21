@@ -14,7 +14,7 @@ import java.util.logging.Logger;
 
 public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable {
     private static final Logger LOG = Logger.getLogger(MemoryWorker.class.getSimpleName());
-    private static final double ALLOWED_MEMORY_FILL_RATIO = 0.8;
+    private static final double ALLOWED_MEMORY_FILL_RATIO = 0.9;
 
     private BlockingQueue<T> tasks;
     private List<O> results;
@@ -55,13 +55,21 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         LOG.info("MemoryWorker started!");
         while (isRunning.get()) {
             checkMemory();
-            T task = tasks.poll();
+            T task = getNextTaskBlocking();
             Optional<O> result = executeTaskCatchingAnyErrors(task);
             result.ifPresent(r -> {
                 taskCounter.incrementAndGet();
                 results.add(r);
             });
             checkMemory();
+        }
+    }
+
+    private T getNextTaskBlocking()  {
+        try {
+            return tasks.take();
+        } catch (InterruptedException e) {
+            return null;
         }
     }
 

@@ -15,7 +15,7 @@ public class Main {
                         .addMemoryFullHandler(new RunGCMemoryFullHandler());
 
         Thread workerExecutionThread = new Thread(memoryWorker);
-
+        workerExecutionThread.setName("MemoryWorker thread");
         workerExecutionThread.start();
         while (true) {
             SimpleMemoryTask simpleMemoryTask = new SimpleMemoryTask(SimpleMemoryTask.RANDOM.nextInt());
@@ -37,14 +37,8 @@ public class Main {
 
         @Override
         public void onMemoryFull(List<Double> results) {
-            try {
-                Thread.sleep(500);
-                System.gc();
-                Thread.sleep(500);
-                
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            System.gc();
+            LOG.info(String.format("Memory filled in %.2f%% after GC.", MemoryStats.getMemoryFillRatio() * 100));
         }
     }
 
