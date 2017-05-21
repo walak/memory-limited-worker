@@ -14,13 +14,14 @@ import java.util.logging.Logger;
 
 public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable {
     private static final Logger LOG = Logger.getLogger(MemoryWorker.class.getSimpleName());
-    private static final double ALLOWED_MEMORY_FILL_RATIO = 0.9;
+    private static final double ALLOWED_MEMORY_FILL_RATIO = 0.90;
 
     private BlockingQueue<T> tasks;
     private List<O> results;
     private AtomicBoolean isRunning;
     private AtomicInteger taskCounter;
     private List<MemoryFullHandler<O>> memoryFullHandlers;
+    private List<MemoryFullHandler<O>> mandatoryHandlers;
 
     public MemoryWorker(int jobQueueCapacity) {
         this.tasks = new LinkedBlockingQueue<T>(jobQueueCapacity);
@@ -28,6 +29,8 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         this.isRunning = new AtomicBoolean(true);
         this.results = new LinkedList<O>();
         this.memoryFullHandlers = Collections.synchronizedList(new LinkedList<>());
+        this.mandatoryHandlers = new LinkedList<>();
+        this.mandatoryHandlers.add(new GCRunHandler());
     }
 
     public boolean tryAddTask(T task) {
@@ -65,7 +68,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         }
     }
 
-    private T getNextTaskBlocking()  {
+    private T getNextTaskBlocking() {
         try {
             return tasks.take();
         } catch (InterruptedException e) {
@@ -77,6 +80,8 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         try {
             Optional<O> result = Optional.of(task.execute());
             LOG.fine("Task successfully executed");
+            Thread.currentThread().setName("MemoryWorker-" + taskCounter.get() + "-done");
+            taskCounter.incrementAndGet();
             return result;
         } catch (Throwable e) {
             LOG.warning("Task execution finished with error: " + e.getMessage());
@@ -98,10 +103,16 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
 
             List<O> results = Collections.unmodifiableList(pullResults());
 
-            for (MemoryFullHandler<O> handler : memoryFullHandlers) {
+            for (MemoryFullHandler<O> handler : getHandlersToRun()) {
                 handler.onMemoryFull(results);
             }
         }
+    }
+
+    private List<MemoryFullHandler<O>> getHandlersToRun() {
+        List<MemoryFullHandler<O>> handlersToRun = new LinkedList<>(memoryFullHandlers);
+        handlersToRun.addAll(mandatoryHandlers);
+        return handlersToRun;
     }
 
     private double getFreeMemory() {
@@ -119,5 +130,14 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
     public MemoryWorker<O, T> addMemoryFullHandler(MemoryFullHandler<O> memoryFullHandler) {
         this.memoryFullHandlers.add(memoryFullHandler);
         return this;
+    }
+
+    private class GCRunHandler implements MemoryFullHandler<O> {
+
+        @Override
+        public void onMemoryFull(List<O> results) {
+            System.gc();
+            LOG.info(String.format("Memory filled in %.2f%% after GC.", MemoryStats.getMemoryFillRatio() * 100));
+        }
     }
 }

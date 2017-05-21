@@ -11,8 +11,7 @@ public class Main {
     public static void main(String[] args) {
         MemoryWorker<Double, SimpleMemoryTask> memoryWorker =
                 new MemoryWorker<Double, SimpleMemoryTask>(10240)
-                        .addMemoryFullHandler(new PrintOutMemoryFullHandler())
-                        .addMemoryFullHandler(new RunGCMemoryFullHandler());
+                        .addMemoryFullHandler(new PrintOutMemoryFullHandler());
 
         Thread workerExecutionThread = new Thread(memoryWorker);
         workerExecutionThread.setName("MemoryWorker thread");
@@ -29,16 +28,6 @@ public class Main {
         @Override
         public void onMemoryFull(List<Double> results) {
             LOG.info("Generated tasks: " + results.size());
-        }
-    }
-
-    private static class RunGCMemoryFullHandler implements MemoryFullHandler<Double> {
-        private static final Logger LOG = Logger.getLogger(RunGCMemoryFullHandler.class.getSimpleName());
-
-        @Override
-        public void onMemoryFull(List<Double> results) {
-            System.gc();
-            LOG.info(String.format("Memory filled in %.2f%% after GC.", MemoryStats.getMemoryFillRatio() * 100));
         }
     }
 
