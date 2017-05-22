@@ -1,6 +1,7 @@
 package com.walak.github.memoryworker.task;
 
-public interface MemoryWorkerTask<O> {
+import java.util.concurrent.Callable;
 
-    O execute();
+public interface MemoryWorkerTask<O> extends Callable<O> {
+
 }

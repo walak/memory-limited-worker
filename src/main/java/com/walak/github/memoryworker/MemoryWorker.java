@@ -78,7 +78,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
 
     private Optional<O> executeTaskCatchingAnyErrors(T task) {
         try {
-            Optional<O> result = Optional.of(task.execute());
+            Optional<O> result = Optional.of(task.call());
             LOG.fine("Task successfully executed");
             Thread.currentThread().setName("MemoryWorker-" + taskCounter.get() + "-done");
             taskCounter.incrementAndGet();

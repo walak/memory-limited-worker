@@ -1,12 +1,14 @@
-package com.walak.github.memoryworker;
+package com.github.walak.memoryworker;
 
+import com.walak.github.memoryworker.MemoryFullHandler;
+import com.walak.github.memoryworker.MemoryWorker;
 import com.walak.github.memoryworker.task.BasicMemoryWorkerTask;
 
 import java.util.List;
 import java.util.Random;
 import java.util.logging.Logger;
 
-public class Main {
+public class Example {
 
     public static void main(String[] args) {
         MemoryWorker<Double, SimpleMemoryTask> memoryWorker =
@@ -39,7 +41,7 @@ public class Main {
         }
 
         @Override
-        public Double execute() {
+        public Double call() {
             return RANDOM.nextDouble() * getInput();
         }
     }
