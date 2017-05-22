@@ -4,66 +4,55 @@ A simple framework to run series of tasks until JVM memory is full.
 ## Abstract
 This simple project will be a part of [new Java implementation](https://github.com/walak/knight-java)
 of [knight game](https://github.com/walak/knight). To gain better performance in distributed environment,
-Java implementation will behave a bit different comparing to Python's solution - it produces new results until
-JVM memory is almost full. To control the process automatically I prepared this simple framework which is able
+Java implementation behave a bit different comparing to Python's solution - it produces new results until
+JVM memory is full above certain threshold (90% for now). To control the process automatically I prepared this simple framework which is able
 to spot that memory is almost full, then handle all produced results and continue right after GC is finished.
 
 ## Usage
 
-
 ### Basic usage
-The core of the project is `MemoryWorker` class. It is implement as `Runnable` so it can be ran in
-separated thread.
+The core of the project is `MemoryWorker` class. 
+It is implement as `Runnable` so it can be ran in separated thread.
+Any task to be executed should be implemented as Callable<O> as there is an assumption that **every job returns a value
+which should not be null**. 
 
-Particular task should implement `MemoryWorkerTask<O>`. `O` is a type of returned result. The interface extends
-`Callable<O>
-declares one method `execute()` used to perform actual work. 
-
-To cover the most simple use cases you can use `BasicMemoryWorkerTask<I, O>` class,
-allowing you to pass input data of type `I` as a constuctor parameter. Passed argument is available by
-calling `getInput()` method. Example of usage:
+To add a task to the MemoryWorker's queue you need to wrap it in MemoryWorkerTask, as below:
 ```java
-import com.walak.github.memoryworker.task.BasicMemoryWorkerTask;
+private static class SimpleMemoryTask implements Callable<Double> {
+    private static final Random RANDOM = new Random();
+    private final int input;
 
-import java.util.List;
-import java.util.Random;
-import java.util.logging.Logger;
-
-public class Main {
-
-    public static void main(String[] args) {
-        MemoryWorker<Double, SimpleMemoryTask> memoryWorker =
-                new MemoryWorker<Double, SimpleMemoryTask>(10240);
-
-        Thread workerExecutionThread = new Thread(memoryWorker);
-        workerExecutionThread.setName("MemoryWorker thread");
-        workerExecutionThread.start();
-        while (true) {
-            SimpleMemoryTask simpleMemoryTask = new SimpleMemoryTask(SimpleMemoryTask.RANDOM.nextInt());
-            memoryWorker.addTask(simpleMemoryTask);
-        }
+    public SimpleMemoryTask(int input) {
+        this.input = input;
     }
-
-    private static class SimpleMemoryTask extends BasicMemoryWorkerTask<Integer, Double> {
-        private static final Random RANDOM = new Random();
-
-        public SimpleMemoryTask(Integer input) {
-            super(input);
-        }
-
-        @Override
-        public Double execute() {
-            return RANDOM.nextDouble() * getInput();
-        }
+    
+    @Override
+    public Double call() {
+        return RANDOM.nextDouble() * input;
     }
 }
+.
+.
+.
+
+MemoryWorker<Double> memoryWorker = new MemoryWorker<Double>(10240);
+SimpleMemoryTask simpleMemoryTask = new SimpleMemoryTask(SimpleMemoryTask.RANDOM.nextInt());
+MemoryWorkerTask<Double> task = new MemoryWorkerTask<>(simpleMemoryTask)
+memoryWorker.addTask(task);
 ```
-See [`Main.java`](https://github.com/walak/memory-limited-worker/blob/master/src/test/java/com/github/walak/memoryworker/Example.java) for full example.
+For full example please see [`Example.java`](https://github.com/walak/memory-limited-worker/blob/master/src/test/java/com/github/walak/memoryworker/Example.java)
+
+### Task status
+MemoryWorkerTask holds a value to determine whether task has been executed successfully. It is accessible 
+via `getStatus()` method Possible values are:
+* `UNKNOWN` - task is yet to run or it is just executing.
+* `SUCCESS` - task was executed correctly
+* `FAILURE` - exception was thrown during task execution.
 
 ### Handlers
 One `MemoryWorker` can have many handlers attached. The handlers should implement
 `MemoryFullHandler` interface and implement `onMemoryFull()` method.
-When general memory usage is above certain treshold (90% for now)
+When general memory usage is above certain threshold (90% for now)
 execution is stopped and all handlers are called so that handlers can consume
 results.
 Important notes:
