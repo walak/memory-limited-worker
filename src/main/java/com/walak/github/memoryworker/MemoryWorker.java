@@ -12,11 +12,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
-public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable {
+public class MemoryWorker<O> implements Runnable {
     private static final Logger LOG = Logger.getLogger(MemoryWorker.class.getSimpleName());
     private static final double ALLOWED_MEMORY_FILL_RATIO = 0.9;
 
-    private BlockingQueue<T> tasks;
+    private BlockingQueue<MemoryWorkerTask<O>> tasks;
     private List<O> results;
     private AtomicBoolean isRunning;
     private AtomicInteger taskCounter;
@@ -24,16 +24,16 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
     private List<MemoryFullHandler<O>> mandatoryHandlers;
 
     public MemoryWorker(int jobQueueCapacity) {
-        this.tasks = new LinkedBlockingQueue<T>(jobQueueCapacity);
+        this.tasks = new LinkedBlockingQueue<>(jobQueueCapacity);
         this.taskCounter = new AtomicInteger(0);
         this.isRunning = new AtomicBoolean(true);
-        this.results = new LinkedList<O>();
+        this.results = new LinkedList<>();
         this.memoryFullHandlers = Collections.synchronizedList(new LinkedList<>());
         this.mandatoryHandlers = new LinkedList<>();
         this.mandatoryHandlers.add(new GCRunHandler());
     }
 
-    public boolean tryAddTask(T task) {
+    public boolean tryAddTask(MemoryWorkerTask<O> task) {
         boolean resultOfAdding = tasks.offer(task);
         if (resultOfAdding) {
             LOG.fine("Task added to queue. Remaining capacity: " + tasks.remainingCapacity());
@@ -43,7 +43,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         return resultOfAdding;
     }
 
-    public boolean addTask(T task) {
+    public boolean addTask(MemoryWorkerTask<O> task) {
         try {
             tasks.put(task);
             LOG.fine("Task added to queue. Remaining capacity: " + tasks.remainingCapacity());
@@ -58,7 +58,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         LOG.info("MemoryWorker started!");
         while (isRunning.get()) {
             checkMemory();
-            T task = getNextTaskBlocking();
+            MemoryWorkerTask<O> task = getNextTaskBlocking();
             Optional<O> result = executeTaskCatchingAnyErrors(task);
             result.ifPresent(r -> {
                 taskCounter.incrementAndGet();
@@ -68,7 +68,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         }
     }
 
-    private T getNextTaskBlocking() {
+    private MemoryWorkerTask<O> getNextTaskBlocking() {
         try {
             return tasks.take();
         } catch (InterruptedException e) {
@@ -76,7 +76,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         }
     }
 
-    private Optional<O> executeTaskCatchingAnyErrors(T task) {
+    private Optional<O> executeTaskCatchingAnyErrors(MemoryWorkerTask<O> task) {
         try {
             Optional<O> result = Optional.of(task.call());
             LOG.fine("Task successfully executed");
@@ -138,7 +138,7 @@ public class MemoryWorker<O, T extends MemoryWorkerTask<O>> implements Runnable 
         return 1.0 - (getFreeMemory() / getMaxMemory());
     }
 
-    public MemoryWorker<O, T> addMemoryFullHandler(MemoryFullHandler<O> memoryFullHandler) {
+    public MemoryWorker<O> addMemoryFullHandler(MemoryFullHandler<O> memoryFullHandler) {
         this.memoryFullHandlers.add(memoryFullHandler);
         return this;
     }

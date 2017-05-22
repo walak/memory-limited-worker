@@ -15,8 +15,9 @@ to spot that memory is almost full, then handle all produced results and continu
 The core of the project is `MemoryWorker` class. It is implement as `Runnable` so it can be ran in
 separated thread.
 
-Particular task should implement `MemoryWorkerTask<O>`. `O` is a type of returned result. The interface
-declares one method `execute()` used to perform actual work.
+Particular task should implement `MemoryWorkerTask<O>`. `O` is a type of returned result. The interface extends
+`Callable<O>
+declares one method `execute()` used to perform actual work. 
 
 To cover the most simple use cases you can use `BasicMemoryWorkerTask<I, O>` class,
 allowing you to pass input data of type `I` as a constuctor parameter. Passed argument is available by
@@ -57,7 +58,7 @@ public class Main {
     }
 }
 ```
-See `Main.java` for full example.
+See [`Main.java`](https://github.com/walak/memory-limited-worker/blob/master/src/test/java/com/github/walak/memoryworker/Example.java) for full example.
 
 ### Handlers
 One `MemoryWorker` can have many handlers attached. The handlers should implement
